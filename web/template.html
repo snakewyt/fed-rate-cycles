@@ -1,0 +1,1110 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>加息、降息与资产周期</title>
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #efe6d4;
+    --paper: #fbf7ef;
+    --ink: #221c16;
+    --muted: #6f6456;
+    --line: #e3d6c2;
+    --grid: #eadfcd;
+    --hike: #b6401e;
+    --cut: #0f6e62;
+    --hold: #9a7b3c;
+    --spx: #1d4e89;
+    --ixic: #b45309;
+    --rut: #6b3fa0;
+    --gold: #8a6a12;
+    --csi: #9d174d;
+    --bond: #0f766e;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background:
+      radial-gradient(900px 320px at 0% -10%, rgba(182, 64, 30, 0.09), transparent 55%),
+      var(--bg);
+    color: var(--ink);
+    font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    font-size: 15px;
+    line-height: 1.55;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 36px 20px 72px; }
+  .kicker {
+    margin: 0 0 8px;
+    color: var(--hike);
+    font-size: 12px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
+  h1 {
+    margin: 0;
+    font-family: "Palatino Linotype", Palatino, "Songti SC", serif;
+    font-size: clamp(32px, 5vw, 46px);
+    font-weight: 600;
+    letter-spacing: -0.03em;
+    line-height: 1.12;
+  }
+  .deck { max-width: 68ch; margin: 12px 0 0; color: #4e463c; }
+  .rule { height: 1px; margin: 22px 0 0; background: var(--ink); }
+  .warn {
+    margin-top: 16px;
+    padding: 10px 12px;
+    border: 1px solid #e2b8a4;
+    border-radius: 10px;
+    background: #fbf1ea;
+    color: #7a341f;
+    font-size: 13px;
+  }
+  .kpis {
+    display: grid;
+    grid-template-columns: 1.5fr repeat(3, 1fr);
+    gap: 12px;
+    margin: 22px 0;
+  }
+  .card, .panel {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+  }
+  .card { padding: 14px 16px 16px; }
+  .card button.as-text {
+    display: block;
+    width: 100%;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    text-align: left;
+    color: inherit;
+    cursor: pointer;
+  }
+  .label { color: var(--muted); font-size: 12px; }
+  .value {
+    margin-top: 4px;
+    font-family: "Palatino Linotype", Palatino, "Songti SC", serif;
+    font-size: 28px;
+    line-height: 1.2;
+    font-variant-numeric: tabular-nums;
+  }
+  .hint { margin: 6px 0 0; color: var(--muted); font-size: 12px; }
+  .panel { margin: 0 0 16px; padding: 16px 16px 14px; }
+  h2 {
+    margin: 0 0 4px;
+    font-family: "Palatino Linotype", Palatino, "Songti SC", serif;
+    font-size: 22px;
+    font-weight: 600;
+  }
+  .subhead { margin: 0 0 12px; color: var(--muted); font-size: 13px; }
+  .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 12px; }
+  .toolbar + .toolbar { margin-top: -4px; }
+  button, select {
+    font: inherit;
+    color: var(--ink);
+    background: transparent;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 6px 12px;
+    cursor: pointer;
+  }
+  button[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+  button[data-asset="spx"][aria-pressed="true"] { background: var(--spx); border-color: var(--spx); }
+  button[data-asset="ixic"][aria-pressed="true"] { background: var(--ixic); border-color: var(--ixic); }
+  button[data-asset="rut"][aria-pressed="true"] { background: var(--rut); border-color: var(--rut); }
+  button[data-asset="gold"][aria-pressed="true"] { background: var(--gold); border-color: var(--gold); }
+  button[data-asset="csi"][aria-pressed="true"] { background: var(--csi); border-color: var(--csi); }
+  button[data-asset="bond"][aria-pressed="true"] { background: var(--bond); border-color: var(--bond); }
+  button[data-dir="hike"][aria-pressed="true"] { background: var(--hike); border-color: var(--hike); }
+  button[data-dir="cut"][aria-pressed="true"] { background: var(--cut); border-color: var(--cut); }
+  button[data-dir="hold"][aria-pressed="true"] { background: #ead7a8; border-color: var(--hold); color: var(--ink); }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+  .check { display: inline-flex; gap: 6px; align-items: center; color: var(--muted); font-size: 13px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; margin: 8px 0 0; color: var(--muted); font-size: 12px; }
+  .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+  .chart-box { position: relative; }
+  .chart-box svg { display: block; width: 100%; height: auto; touch-action: pan-y; }
+  .scroll { overflow-x: auto; }
+  .tip {
+    position: absolute;
+    z-index: 4;
+    display: none;
+    max-width: 260px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: var(--ink);
+    color: var(--paper);
+    font-size: 12px;
+    line-height: 1.45;
+    pointer-events: none;
+  }
+  .tip b { font-weight: 600; }
+  .empty { margin: 8px 0; color: var(--muted); }
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+  th, td { padding: 8px 10px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+  th:first-child, td:first-child, th:nth-child(2), td:nth-child(2) { text-align: left; }
+  th { color: var(--muted); font-weight: 600; font-size: 12px; }
+  tbody tr { cursor: pointer; }
+  tbody tr:hover { background: rgba(34, 28, 22, 0.03); }
+  tr[aria-selected="true"] { background: rgba(182, 64, 30, 0.08); }
+  .pill {
+    display: inline-block;
+    min-width: 3em;
+    padding: 1px 8px;
+    border-radius: 999px;
+    color: white;
+    font-size: 12px;
+    text-align: center;
+  }
+  .pill.hold { color: var(--ink); }
+  .badge {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: var(--ink);
+    color: var(--paper);
+    font-size: 11px;
+  }
+  .cell-sub { display: block; color: var(--muted); font-size: 11px; }
+  .pos { color: var(--cut); }
+  .neg { color: var(--hike); }
+  footer { margin-top: 8px; color: var(--muted); font-size: 13px; }
+  footer h2 { font-size: 18px; }
+  footer a { color: var(--spx); }
+  footer ul { margin: 8px 0 0; padding-left: 18px; }
+  @media (max-width: 860px) {
+    .kpis { grid-template-columns: 1fr 1fr; }
+    .value { font-size: 22px; }
+  }
+  @media (max-width: 560px) {
+    .kpis { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="kicker">Federal funds · equities</p>
+  <h1>加息、降息与资产周期</h1>
+  <p class="deck">用有效联邦基金利率的拐点，把 1954 年以来分成加息、降息和持稳。色带是这三段。线默认是标普 500、黄金和沪深 300，也可以叠上纳斯达克、罗素 2000，以及用 10 年期收益率估算的国债总回报。右端虚线标出现在大致落在哪一种周期。</p>
+  <div class="rule"></div>
+  <div id="warnings"></div>
+  <section class="kpis" id="kpis"></section>
+
+  <section class="panel" id="panel-main">
+    <h2>利率和资产放在同一条时间上</h2>
+    <p class="subhead" id="main-sub"></p>
+    <div class="toolbar" id="asset-bar">
+      <button type="button" data-asset="spx" aria-pressed="true">标普 500</button>
+      <button type="button" data-asset="gold" aria-pressed="true">黄金</button>
+      <button type="button" data-asset="csi" aria-pressed="true">沪深 300</button>
+      <button type="button" data-asset="ixic">纳斯达克</button>
+      <button type="button" data-asset="rut">罗素 2000</button>
+      <button type="button" data-asset="bond">10 年国债</button>
+    </div>
+    <div class="toolbar">
+      <button type="button" data-range="all" aria-pressed="true">全部</button>
+      <button type="button" data-range="1970">1970 以来</button>
+      <button type="button" data-range="1990">1990 以来</button>
+      <button type="button" data-range="2009">2009 以来</button>
+      <button type="button" data-range="2020">2020 以来</button>
+      <label class="check"><input id="log-scale" type="checkbox" checked> 对数坐标</label>
+    </div>
+    <div class="chart-box" id="main-box">
+      <div id="main-chart"></div>
+      <div class="tip" id="main-tip"></div>
+    </div>
+    <div class="legend">
+      <span><i class="swatch" style="background:var(--hike)"></i>加息</span>
+      <span><i class="swatch" style="background:var(--cut)"></i>降息</span>
+      <span><i class="swatch" style="background:var(--hold)"></i>持稳</span>
+      <span>右轴是联邦基金利率。资产在窗口起点重新定为 100。右端虚线是现在。</span>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>每一轮的收益</h2>
+    <p class="subhead" id="bar-sub"></p>
+    <div class="toolbar">
+      <button type="button" data-dir="hike" aria-pressed="true">加息</button>
+      <button type="button" data-dir="cut" aria-pressed="true">降息</button>
+      <button type="button" data-dir="hold">持稳</button>
+      <button type="button" data-barmode="ann" aria-pressed="true">年化</button>
+      <button type="button" data-barmode="cum">累计</button>
+    </div>
+    <div class="scroll chart-box" id="bar-box">
+      <div id="bar-chart"></div>
+      <div class="tip" id="bar-tip"></div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>把每一轮叠在起点上</h2>
+    <p class="subhead" id="spa-sub"></p>
+    <div class="toolbar">
+      <select id="spa-asset"></select>
+      <select id="spa-dir">
+        <option value="hike">加息</option>
+        <option value="cut">降息</option>
+        <option value="hold">持稳</option>
+      </select>
+    </div>
+    <div class="chart-box" id="spa-box">
+      <div id="spa-chart"></div>
+      <div class="tip" id="spa-tip"></div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>分周期明细</h2>
+    <p class="subhead">点一行，上面的色带会标出来。收益从该段起点月收到终点月收。持有期不足 6 个月的不年化。股票是价格指数，不含分红。回撤是段内最大回撤。</p>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>周期</th>
+            <th>起止</th>
+            <th>月数</th>
+            <th>联邦基金利率</th>
+            <th data-col="spx">标普 500</th>
+            <th data-col="gold">黄金</th>
+            <th data-col="csi">沪深 300</th>
+            <th data-col="ixic">纳斯达克</th>
+            <th data-col="rut">罗素 2000</th>
+            <th data-col="bond">10 年国债</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer>
+    <h2>这张图怎么划周期</h2>
+    <p id="method"></p>
+    <ul>
+      <li>有效联邦基金利率和 10 年期国债收益率用美联储 <a href="https://www.federalreserve.gov/releases/h15/">H.15</a> 月平均（RIFSPFF_N.M、RIFLGFCY10_N.M）。</li>
+      <li>国债线不是某个债券指数，而是把每年付息的 10 年平价债按久期和凸性逐月滚出来的近似总回报。</li>
+      <li>标普 500 用罗伯特·席勒的月平均价，覆盖 1954 年以来的每一轮；席勒序列结束后的月份用 <a href="https://finance.yahoo.com/quote/%5EGSPC/">Yahoo 月收盘</a>接上。两者在重叠月份的中位比大约是 1.01。</li>
+      <li>黄金是美元/盎司的月平均现货价，从 1968 年伦敦金市放开起算。更早是 35 美元官价，那些周期的黄金列是空的。</li>
+      <li>沪深 300 用月收盘，从 2005 年开始。更早的周期这一列是空的。它和美股一样是价格指数，不含分红。能对上的加息、降息轮次不多，中位数只供对照，不当成规律。</li>
+      <li>纳斯达克综合和罗素 2000 用 Yahoo 月收盘，分别从 1985 年和 1987 年开始。更早的周期这两列是空的。股票都不含分红，长周期会比总回报少掉分红那一截。</li>
+      <li>中位数按轮次算，不按时间加权。进行中的这一轮，以及数据起点之前就已经在走的半段，不进中位数。</li>
+      <li>明细表同时写在 <code>data/cycles.csv</code>。更新数据：在项目目录运行 <code>py -3 build.py</code>。</li>
+    </ul>
+    <p id="generated"></p>
+  </footer>
+</div>
+<script>
+const DATA = __EMBEDDED_DATA__;
+const SVGNS = "http://www.w3.org/2000/svg";
+const ASSET_META = {
+  spx: { name: "标普 500", color: "#1d4e89" },
+  gold: { name: "黄金", color: "#8a6a12" },
+  csi: { name: "沪深 300", color: "#9d174d" },
+  ixic: { name: "纳斯达克", color: "#b45309" },
+  rut: { name: "罗素 2000", color: "#6b3fa0" },
+  bond: { name: "10 年国债", color: "#0f766e" },
+};
+const DIR_META = {
+  hike: { name: "加息", color: "#b6401e" },
+  cut: { name: "降息", color: "#0f6e62" },
+  hold: { name: "持稳", color: "#9a7b3c" },
+};
+const RANGES = { all: "0000-00", 1970: "1970-01", 1990: "1990-01", 2009: "2009-01", 2020: "2020-01" };
+
+const state = {
+  assets: new Set(["spx", "gold", "csi"]),
+  range: "all",
+  dirs: new Set(["hike", "cut"]),
+  barMode: "ann",
+  log: true,
+  spaAsset: "spx",
+  spaDir: "hike",
+  selected: null,
+};
+
+const maps = {};
+for (const [key, rows] of Object.entries(DATA.series)) {
+  maps[key] = new Map(rows.map((row) => [row.d, row.v]));
+}
+const fedMonths = DATA.series.fed.map((row) => row.d);
+
+function el(name, attrs, parent) {
+  const node = document.createElementNS(SVGNS, name);
+  for (const [k, v] of Object.entries(attrs || {})) node.setAttribute(k, String(v));
+  if (parent) parent.appendChild(node);
+  return node;
+}
+function clear(node) { node.replaceChildren(); }
+function fmtPct(x) {
+  if (x == null || !Number.isFinite(x)) return "—";
+  return (x > 0 ? "+" : "") + (x * 100).toFixed(1) + "%";
+}
+function fmtRate(x) { return Number(x).toFixed(2) + "%"; }
+function fmtMonth(m) { return m.replace("-", "."); }
+function dirName(d) { return DIR_META[d].name; }
+function availableAssets() {
+  return Object.keys(ASSET_META).filter((id) => maps[id] && maps[id].size > 1);
+}
+function selectedAssets() {
+  return availableAssets().filter((id) => state.assets.has(id));
+}
+function phasesInRange() {
+  const start = RANGES[state.range];
+  return DATA.phases.filter((p) => p.end >= start);
+}
+function statPhases(direction, asset) {
+  return DATA.phases.filter((p) => p.direction === direction && !p.ongoing && !p.censored && p.returns[asset]);
+}
+function median(values) {
+  const xs = values.filter((v) => v != null && Number.isFinite(v)).sort((a, b) => a - b);
+  if (!xs.length) return null;
+  const mid = Math.floor(xs.length / 2);
+  return xs.length % 2 ? xs[mid] : (xs[mid - 1] + xs[mid]) / 2;
+}
+function quantile(sorted, q) {
+  if (!sorted.length) return null;
+  const pos = (sorted.length - 1) * q;
+  const lo = Math.floor(pos);
+  const hi = Math.ceil(pos);
+  if (lo === hi) return sorted[lo];
+  return sorted[lo] * (hi - pos) + sorted[hi] * (pos - lo);
+}
+function monthsOf(phase) {
+  return fedMonths.filter((m) => m >= phase.start && m <= phase.end);
+}
+function signClass(x) { return x > 0 ? "pos" : x < 0 ? "neg" : ""; }
+
+function renderWarnings() {
+  const host = document.getElementById("warnings");
+  clear(host);
+  for (const text of DATA.warnings || []) {
+    const div = document.createElement("div");
+    div.className = "warn";
+    div.textContent = text;
+    host.appendChild(div);
+  }
+}
+
+function renderKpis() {
+  const host = document.getElementById("kpis");
+  clear(host);
+  const current = DATA.phases.find((p) => p.id === DATA.summary.current_id) || DATA.phases.at(-1);
+  const now = DATA.summary.now || {};
+  const spx = current.returns.spx;
+  const gold = current.returns.gold;
+  const extras = [];
+  if (spx) extras.push(`标普 500 ${fmtPct(spx.cum)}，年化 ${fmtPct(spx.ann)}`);
+  if (gold) extras.push(`黄金 ${fmtPct(gold.cum)}，年化 ${fmtPct(gold.ann)}`);
+  const csi = current.returns.csi;
+  if (csi) extras.push(`沪深 300 ${fmtPct(csi.cum)}，年化 ${fmtPct(csi.ann)}`);
+  const cards = [
+    {
+      label: "现在大致是",
+      value: now.title || dirName(current.direction),
+      hint: now.detail || `${fmtMonth(current.start)} – ${current.ongoing ? "今" : fmtMonth(current.end)} · 利率 ${rateText(current)}`,
+      extra: extras.join(" · ") || "这段起点还没有价格",
+      select: current.id,
+    },
+    {
+      label: "加息段 · 标普年化中位数",
+      value: fmtPct(DATA.summary.hike_spx_ann_median),
+      hint: `${DATA.summary.hike_n} 轮已完成 · 累计中位数 ${fmtPct(DATA.summary.hike_spx_cum_median)}`,
+    },
+    {
+      label: "降息段 · 标普年化中位数",
+      value: fmtPct(DATA.summary.cut_spx_ann_median),
+      hint: `${DATA.summary.cut_n} 轮已完成 · 累计中位数 ${fmtPct(DATA.summary.cut_spx_cum_median)}`,
+    },
+    {
+      label: "降息段 · 国债年化中位数",
+      value: fmtPct(DATA.summary.cut_bond_ann_median),
+      hint: `加息段 ${fmtPct(DATA.summary.hike_bond_ann_median)}。近似总回报，按轮次，不含进行中。`,
+    },
+  ];
+  for (const card of cards) {
+    const node = document.createElement("article");
+    node.className = "card";
+    const label = document.createElement("div");
+    label.className = "label";
+    label.textContent = card.label;
+    const value = document.createElement("div");
+    value.className = "value";
+    value.textContent = card.value;
+    const hint = document.createElement("p");
+    hint.className = "hint";
+    hint.textContent = card.hint;
+    if (card.select) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "as-text";
+      btn.append(label, value, hint);
+      if (card.extra) {
+        const extra = document.createElement("p");
+        extra.className = "hint";
+        extra.textContent = card.extra;
+        btn.append(extra);
+      }
+      btn.addEventListener("click", () => selectPhase(card.select, true));
+      node.append(btn);
+    } else {
+      node.append(label, value, hint);
+    }
+    host.append(node);
+  }
+}
+
+function syncButtons() {
+  document.querySelectorAll("[data-asset]").forEach((btn) => {
+    btn.setAttribute("aria-pressed", state.assets.has(btn.dataset.asset) ? "true" : "false");
+  });
+  document.querySelectorAll("[data-range]").forEach((btn) => {
+    btn.setAttribute("aria-pressed", state.range === btn.dataset.range ? "true" : "false");
+  });
+  document.querySelectorAll("[data-dir]").forEach((btn) => {
+    btn.setAttribute("aria-pressed", state.dirs.has(btn.dataset.dir) ? "true" : "false");
+  });
+  document.querySelectorAll("[data-barmode]").forEach((btn) => {
+    btn.setAttribute("aria-pressed", state.barMode === btn.dataset.barmode ? "true" : "false");
+  });
+  document.getElementById("log-scale").checked = state.log;
+  document.getElementById("spa-asset").value = state.spaAsset;
+  document.getElementById("spa-dir").value = state.spaDir;
+}
+
+function chartWidth(container, min) {
+  return Math.max(min || 320, container.clientWidth || 320);
+}
+function linTicks(min, max, count) {
+  const span = max - min || 1;
+  const rough = span / count;
+  const mag = 10 ** Math.floor(Math.log10(rough));
+  const err = rough / mag;
+  const step = err >= 7.5 ? 10 * mag : err >= 3.5 ? 5 * mag : err >= 1.5 ? 2 * mag : mag;
+  const start = Math.ceil(min / step) * step;
+  const ticks = [];
+  for (let v = start; v <= max + step * 0.01; v += step) ticks.push(Number(v.toFixed(6)));
+  return ticks;
+}
+function logTicks(min, max) {
+  const ticks = [];
+  for (let exp = -1; exp <= 6; exp++) {
+    for (const m of [1, 1.5, 2, 3, 4, 5, 6, 8]) {
+      const v = m * 10 ** exp;
+      if (v >= min && v <= max) ticks.push(v);
+    }
+  }
+  if (ticks.length > 7) return ticks.filter((_, i) => i % 2 === 0);
+  return ticks;
+}
+function placeTip(tip, box, clientX, clientY) {
+  const rect = box.getBoundingClientRect();
+  let x = clientX - rect.left + 12;
+  let y = clientY - rect.top + 12;
+  tip.style.display = "block";
+  const tw = tip.offsetWidth;
+  const th = tip.offsetHeight;
+  if (x + tw > rect.width - 8) x = Math.max(8, clientX - rect.left - tw - 12);
+  if (y + th > rect.height - 8) y = Math.max(8, clientY - rect.top - th - 12);
+  tip.style.left = x + "px";
+  tip.style.top = y + "px";
+}
+
+function renderMain() {
+  const host = document.getElementById("main-chart");
+  const box = document.getElementById("main-box");
+  const tip = document.getElementById("main-tip");
+  clear(host);
+  tip.style.display = "none";
+  const start = RANGES[state.range];
+  const months = fedMonths.filter((m) => m >= start);
+  const now = DATA.summary.now;
+  document.getElementById("main-sub").textContent = months.length
+    ? `${fmtMonth(months[0])} – ${fmtMonth(months[months.length - 1])} · 现在是${now ? now.title : "最新一段"}。右端虚线标在最新一个月。点色带或表格可以固定某一轮`
+    : "";
+  if (months.length < 2) {
+    host.append(Object.assign(document.createElement("p"), { className: "empty", textContent: "这个范围里没有数据。" }));
+    return;
+  }
+  const width = chartWidth(box);
+  const height = 460;
+  const pad = { l: 54, r: 46, t: 28, b: 32 };
+  const plotW = width - pad.l - pad.r;
+  const plotH = height - pad.t - pad.b;
+  const n = months.length;
+  const xOf = (i) => pad.l + (i / (n - 1)) * plotW;
+  const assets = selectedAssets();
+  const rebased = {};
+  for (const id of assets) {
+    let base = null;
+    rebased[id] = months.map((m) => {
+      const v = maps[id].get(m);
+      if (v == null || v <= 0) return null;
+      if (base == null) base = v;
+      return (100 * v) / base;
+    });
+  }
+  const prices = assets.flatMap((id) => rebased[id].filter((v) => v != null && v > 0));
+  let ymin = Math.min(...prices);
+  let ymax = Math.max(...prices);
+  if (!Number.isFinite(ymin) || !Number.isFinite(ymax)) { ymin = 80; ymax = 120; }
+  if (state.log) {
+    const lo = Math.log(ymin);
+    const hi = Math.log(ymax);
+    const padLog = Math.max(0.05, (hi - lo) * 0.08);
+    ymin = Math.exp(lo - padLog);
+    ymax = Math.exp(hi + padLog);
+  } else {
+    const padLin = Math.max(2, (ymax - ymin) * 0.08);
+    ymin -= padLin;
+    ymax += padLin;
+    if (ymin <= 0) ymin = Math.min(...prices) * 0.9;
+  }
+  const rates = months.map((m) => maps.fed.get(m));
+  let rmin = Math.min(0, ...rates);
+  let rmax = Math.max(...rates, 1);
+  rmax += (rmax - rmin) * 0.08;
+  const yPrice = (v) => {
+    const t = state.log
+      ? (Math.log(v) - Math.log(ymin)) / (Math.log(ymax) - Math.log(ymin))
+      : (v - ymin) / (ymax - ymin);
+    return pad.t + (1 - t) * plotH;
+  };
+  const yRate = (v) => pad.t + (1 - (v - rmin) / (rmax - rmin)) * plotH;
+  const indexOf = new Map(months.map((m, i) => [m, i]));
+
+  const svg = el("svg", { width, height, viewBox: `0 0 ${width} ${height}`, role: "img" });
+  svg.setAttribute("aria-label", "联邦基金利率与资产走势");
+  const clip = el("clipPath", { id: "clip-main" }, el("defs", {}, svg));
+  el("rect", { x: pad.l, y: pad.t, width: plotW, height: plotH }, clip);
+  const bands = el("g", {}, svg);
+  const grid = el("g", {}, svg);
+  const lines = el("g", { "clip-path": "url(#clip-main)" }, svg);
+
+  const yTicks = state.log ? logTicks(ymin, ymax) : linTicks(ymin, ymax, 5);
+  for (const tick of yTicks) {
+    const y = yPrice(tick);
+    el("line", { x1: pad.l, x2: width - pad.r, y1: y, y2: y, stroke: "#eadfcd" }, grid);
+    const label = el("text", { x: pad.l - 8, y: y + 4, "text-anchor": "end", fill: "#6f6456", "font-size": 11 }, grid);
+    label.textContent = Math.round(tick).toString();
+  }
+  for (const tick of linTicks(rmin, rmax, 4)) {
+    const label = el("text", { x: width - pad.r + 8, y: yRate(tick) + 4, fill: "#6f6456", "font-size": 11 }, grid);
+    label.textContent = tick.toFixed(tick >= 10 ? 0 : 1);
+  }
+  const yearStep = n > 500 ? 10 : n > 240 ? 5 : n > 80 ? 2 : 1;
+  let lastYear = -1;
+  months.forEach((m, i) => {
+    const year = Number(m.slice(0, 4));
+    if (m.slice(5) !== "01" && i !== 0) return;
+    if (year % yearStep !== 0 && i !== 0) return;
+    if (year === lastYear) return;
+    lastYear = year;
+    const label = el("text", { x: xOf(i), y: height - 10, fill: "#6f6456", "font-size": 11 }, grid);
+    label.textContent = String(year);
+  });
+
+  for (const phase of DATA.phases) {
+    if (phase.end < months[0] || phase.start > months[months.length - 1]) continue;
+    const i0 = indexOf.has(phase.start) ? indexOf.get(phase.start) : 0;
+    const i1 = indexOf.has(phase.end) ? indexOf.get(phase.end) : n - 1;
+    const x = xOf(Math.min(i0, i1));
+    const w = Math.max(1, xOf(Math.max(i0, i1)) - x);
+    const selected = state.selected === phase.id;
+    const dim = state.selected && !selected;
+    const rect = el("rect", {
+      x, y: pad.t, width: w, height: plotH,
+      fill: DIR_META[phase.direction].color,
+      opacity: selected ? 0.34 : dim ? 0.06 : phase.direction === "hold" ? 0.1 : 0.16,
+      cursor: "pointer",
+    }, bands);
+    rect.addEventListener("click", () => selectPhase(phase.id, false));
+    const isNow = now && phase.id === DATA.summary.current_id && phase.ongoing;
+    if ((selected || (phase.ongoing && !state.selected)) && !isNow) {
+      const caption = dirName(phase.direction) + (phase.ongoing ? " · 进行中" : "");
+      const nearRight = x + 84 > width - pad.r;
+      const text = el("text", {
+        x: nearRight ? width - pad.r - 4 : x + 6,
+        y: pad.t + 16,
+        fill: DIR_META[phase.direction].color,
+        "font-size": 12,
+        "text-anchor": nearRight ? "end" : "start",
+      }, bands);
+      text.textContent = caption;
+    }
+  }
+
+  if (now && months[n - 1] === fedMonths[fedMonths.length - 1]) {
+    const xNow = xOf(n - 1);
+    el("line", {
+      x1: xNow, x2: xNow, y1: 2, y2: pad.t + plotH,
+      stroke: DIR_META[now.direction].color, "stroke-width": 1.25, "stroke-dasharray": "2 3",
+    }, bands);
+    const nowLabel = el("text", {
+      x: Math.max(pad.l + 8, xNow - 6),
+      y: 16,
+      fill: DIR_META[now.direction].color,
+      "font-size": 13,
+      "font-weight": 600,
+      "text-anchor": "end",
+    }, bands);
+    nowLabel.textContent = "今 · " + now.title;
+  }
+
+  function pathOf(values, yFn) {
+    let d = "";
+    let drawing = false;
+    values.forEach((v, i) => {
+      if (v == null || !Number.isFinite(v)) { drawing = false; return; }
+      d += `${drawing ? "L" : "M"}${xOf(i).toFixed(1)},${yFn(v).toFixed(1)}`;
+      drawing = true;
+    });
+    return d;
+  }
+  for (const id of assets) {
+    el("path", { d: pathOf(rebased[id], yPrice), fill: "none", stroke: ASSET_META[id].color, "stroke-width": 2 }, lines);
+  }
+  el("path", {
+    d: pathOf(rates, yRate), fill: "none", stroke: "#221c16", "stroke-width": 1.5,
+  }, lines);
+
+  const hover = el("line", { y1: pad.t, y2: pad.t + plotH, stroke: "#221c16", "stroke-dasharray": "3 3", visibility: "hidden" }, svg);
+  host.append(svg);
+
+  function onMove(event) {
+    const point = event.touches ? event.touches[0] : event;
+    const rect = svg.getBoundingClientRect();
+    const px = ((point.clientX - rect.left) / rect.width) * width;
+    let i = Math.round(((px - pad.l) / plotW) * (n - 1));
+    i = Math.max(0, Math.min(n - 1, i));
+    hover.setAttribute("visibility", "visible");
+    hover.setAttribute("x1", xOf(i));
+    hover.setAttribute("x2", xOf(i));
+    const month = months[i];
+    const phase = DATA.phases.find((p) => p.start <= month && month <= p.end);
+    const linesHtml = [`<b>${fmtMonth(month)}</b> · ${phase ? dirName(phase.direction) : ""}`];
+    linesHtml.push(`联邦基金 ${fmtRate(rates[i])}`);
+    for (const id of assets) {
+      const actual = maps[id].get(month);
+      const base = rebased[id][i];
+      if (actual == null) continue;
+      linesHtml.push(`${ASSET_META[id].name} ${actual.toFixed(actual >= 100 ? 0 : 2)} · 起点=${base == null ? "—" : base.toFixed(0)}`);
+    }
+    tip.innerHTML = linesHtml.join("<br>");
+    placeTip(tip, box, point.clientX, point.clientY);
+  }
+  svg.addEventListener("pointermove", onMove);
+  svg.addEventListener("pointerleave", () => {
+    hover.setAttribute("visibility", "hidden");
+    tip.style.display = "none";
+  });
+}
+
+function renderBars() {
+  const host = document.getElementById("bar-chart");
+  const box = document.getElementById("bar-box");
+  const tip = document.getElementById("bar-tip");
+  clear(host);
+  tip.style.display = "none";
+  const assets = selectedAssets();
+  const items = phasesInRange().filter((p) => state.dirs.has(p.direction));
+  const modeName = state.barMode === "ann" ? "年化" : "累计";
+  document.getElementById("bar-sub").textContent =
+    `${items.length} 段落在当前时间范围内。柱子是${modeName}收益。持有期不足 6 个月的不年化。星号是还没走完的一轮。`;
+  if (!items.length || !assets.length) {
+    const p = document.createElement("p");
+    p.className = "empty";
+    p.textContent = assets.length ? "这个筛选下没有周期。" : "先在上面点开至少一个资产。";
+    host.append(p);
+    return;
+  }
+  const values = [];
+  for (const phase of items) {
+    for (const id of assets) {
+      const stats = phase.returns[id];
+      if (stats && stats[state.barMode] != null) values.push(stats[state.barMode]);
+    }
+  }
+  const groupW = Math.max(64, assets.length * 18 + 28);
+  const width = Math.max(chartWidth(box), items.length * groupW + 72);
+  const height = 340;
+  const pad = { l: 52, r: 16, t: 16, b: 64 };
+  const plotW = width - pad.l - pad.r;
+  const plotH = height - pad.t - pad.b;
+  let min = Math.min(0, ...values, 0);
+  let max = Math.max(0, ...values, 0);
+  if (min === max) { min -= 0.05; max += 0.05; }
+  const padY = (max - min) * 0.12;
+  min -= padY;
+  max += padY;
+  const yOf = (v) => pad.t + (1 - (v - min) / (max - min)) * plotH;
+  const zero = yOf(0);
+  const svg = el("svg", { width, height, viewBox: `0 0 ${width} ${height}`, role: "img" });
+  svg.setAttribute("aria-label", "分周期收益");
+  for (const tick of linTicks(min, max, 5)) {
+    const y = yOf(tick);
+    el("line", { x1: pad.l, x2: width - pad.r, y1: y, y2: y, stroke: tick === 0 ? "#221c16" : "#eadfcd" }, svg);
+    const label = el("text", { x: pad.l - 8, y: y + 4, "text-anchor": "end", fill: "#6f6456", "font-size": 11 }, svg);
+    label.textContent = Math.round(tick * 100) + "%";
+  }
+  const barW = Math.min(14, (groupW - 20) / assets.length);
+  items.forEach((phase, index) => {
+    const gx = pad.l + (index + 0.5) * (plotW / items.length);
+    assets.forEach((id, ai) => {
+      const stats = phase.returns[id];
+      const value = stats ? stats[state.barMode] : null;
+      if (value == null) return;
+      const y = yOf(value);
+      const top = Math.min(y, zero);
+      const h = Math.max(1, Math.abs(y - zero));
+      const x = gx - (assets.length * barW) / 2 + ai * barW;
+      const color = assets.length === 1 ? DIR_META[phase.direction].color : ASSET_META[id].color;
+      const rect = el("rect", {
+        x, y: top, width: barW - 2, height: h, fill: color,
+        opacity: phase.ongoing ? 0.55 : 1, cursor: "pointer",
+      }, svg);
+      rect.addEventListener("click", () => selectPhase(phase.id, true));
+      rect.addEventListener("pointermove", (event) => {
+        tip.innerHTML = `<b>${dirName(phase.direction)} ${fmtMonth(phase.start)} – ${phase.ongoing ? "今" : fmtMonth(phase.end)}</b><br>${ASSET_META[id].name} ${modeName} ${fmtPct(value)}`;
+        placeTip(tip, box, event.clientX, event.clientY);
+      });
+    });
+    const label = el("text", {
+      x: gx, y: height - 42, "text-anchor": "end", fill: "#6f6456", "font-size": 11,
+      transform: `rotate(-45 ${gx} ${height - 42})`,
+    }, svg);
+    label.textContent = phase.start.slice(0, 4) + (phase.ongoing ? "*" : "");
+  });
+  if (assets.length === 1 && state.dirs.size === 1) {
+    const done = items.filter((p) => !p.ongoing && !p.censored)
+      .map((p) => p.returns[assets[0]] && p.returns[assets[0]][state.barMode])
+      .filter((v) => v != null);
+    const med = median(done);
+    if (med != null) {
+      el("line", {
+        x1: pad.l, x2: width - pad.r, y1: yOf(med), y2: yOf(med),
+        stroke: "#221c16", "stroke-dasharray": "4 4",
+      }, svg);
+    }
+  }
+  host.append(svg);
+  svg.addEventListener("pointerleave", () => { tip.style.display = "none"; });
+}
+
+function cyclePath(phase, asset) {
+  const series = maps[asset];
+  if (!series || !series.has(phase.start)) return null;
+  const base = series.get(phase.start);
+  if (!base || base <= 0) return null;
+  const months = monthsOf(phase);
+  const values = [];
+  for (const month of months) {
+    const value = series.get(month);
+    values.push(value == null || value <= 0 ? null : (100 * value) / base);
+  }
+  return values.some((v) => v != null) ? values : null;
+}
+
+function renderSpaghetti() {
+  const host = document.getElementById("spa-chart");
+  const box = document.getElementById("spa-box");
+  const tip = document.getElementById("spa-tip");
+  clear(host);
+  tip.style.display = "none";
+  const asset = state.spaAsset;
+  const direction = state.spaDir;
+  const paths = [];
+  for (const phase of DATA.phases) {
+    if (phase.direction !== direction) continue;
+    if (RANGES[state.range] > phase.end) continue;
+    const values = cyclePath(phase, asset);
+    if (!values) continue;
+    paths.push({ phase, values });
+  }
+  const finished = paths.filter((p) => !p.phase.ongoing && !p.phase.censored);
+  const medNote = finished.length >= 3
+    ? `${finished.length} 轮已完成，粗线是中位数`
+    : `${finished.length} 轮已完成，满 3 轮才画中位数`;
+  document.getElementById("spa-sub").textContent =
+    `${ASSET_META[asset].name} · ${dirName(direction)} · ${paths.length} 轮有起点价格，${medNote}。纵轴在该轮起点定为 100。阴影是 25% 到 75% 分位。`;
+  if (paths.length < 1) {
+    const p = document.createElement("p");
+    p.className = "empty";
+    p.textContent = "这个资产在这些周期的起点还没有行情。";
+    host.append(p);
+    return;
+  }
+  const length = Math.max(...paths.map((p) => p.values.length));
+  const width = chartWidth(box);
+  const height = 380;
+  const pad = { l: 48, r: 20, t: 16, b: 36 };
+  const plotW = width - pad.l - pad.r;
+  const plotH = height - pad.t - pad.b;
+  const xOf = (i) => pad.l + (length <= 1 ? 0 : (i / (length - 1)) * plotW);
+  const samples = [];
+  for (let i = 0; i < length; i++) {
+    const bucket = finished.map((p) => p.values[i]).filter((v) => v != null).sort((a, b) => a - b);
+    samples.push(bucket);
+  }
+  const all = paths.flatMap((p) => p.values.filter((v) => v != null));
+  let ymin = Math.min(...all);
+  let ymax = Math.max(...all);
+  const yPad = Math.max(2, (ymax - ymin) * 0.08);
+  ymin -= yPad;
+  ymax += yPad;
+  const yOf = (v) => pad.t + (1 - (v - ymin) / (ymax - ymin)) * plotH;
+  const svg = el("svg", { width, height, viewBox: `0 0 ${width} ${height}`, role: "img" });
+  svg.setAttribute("aria-label", "各轮周期叠加");
+  for (const tick of linTicks(ymin, ymax, 5)) {
+    const y = yOf(tick);
+    el("line", { x1: pad.l, x2: width - pad.r, y1: y, y2: y, stroke: "#eadfcd" }, svg);
+    const label = el("text", { x: pad.l - 8, y: y + 4, "text-anchor": "end", fill: "#6f6456", "font-size": 11 }, svg);
+    label.textContent = Math.round(tick).toString();
+  }
+  for (let month = 0; month < length; month += length > 48 ? 12 : 6) {
+    const label = el("text", { x: xOf(month), y: height - 12, fill: "#6f6456", "font-size": 11 }, svg);
+    label.textContent = month === 0 ? "起点" : month + "个月";
+  }
+  const upper = [];
+  const lower = [];
+  samples.forEach((bucket, i) => {
+    if (bucket.length < 3) return;
+    upper.push([i, quantile(bucket, 0.75)]);
+    lower.push([i, quantile(bucket, 0.25)]);
+  });
+  if (upper.length) {
+    const d = upper.map((p, i) => `${i ? "L" : "M"}${xOf(p[0])},${yOf(p[1])}`).join("")
+      + lower.reverse().map((p) => `L${xOf(p[0])},${yOf(p[1])}`).join("") + "Z";
+    el("path", { d, fill: DIR_META[direction].color, opacity: 0.15 }, svg);
+  }
+  for (const item of paths) {
+    let d = "";
+    let drawing = false;
+    item.values.forEach((v, i) => {
+      if (v == null) { drawing = false; return; }
+      d += `${drawing ? "L" : "M"}${xOf(i).toFixed(1)},${yOf(v).toFixed(1)}`;
+      drawing = true;
+    });
+    const selected = state.selected === item.phase.id;
+    el("path", {
+      d, fill: "none",
+      stroke: selected ? "#221c16" : DIR_META[direction].color,
+      "stroke-width": selected || item.phase.ongoing ? 2.4 : 1,
+      opacity: state.selected && !selected ? 0.15 : item.phase.ongoing ? 0.95 : 0.45,
+      "stroke-dasharray": item.phase.ongoing ? "5 4" : "none",
+    }, svg);
+  }
+  let medD = "";
+  let drawing = false;
+  samples.forEach((bucket, i) => {
+    if (bucket.length < 3) { drawing = false; return; }
+    const v = quantile(bucket, 0.5);
+    medD += `${drawing ? "L" : "M"}${xOf(i).toFixed(1)},${yOf(v).toFixed(1)}`;
+    drawing = true;
+  });
+  el("path", { d: medD, fill: "none", stroke: "#221c16", "stroke-width": 2.4 }, svg);
+  host.append(svg);
+
+  svg.addEventListener("pointermove", (event) => {
+    const rect = svg.getBoundingClientRect();
+    const px = ((event.clientX - rect.left) / rect.width) * width;
+    let i = Math.round(((px - pad.l) / plotW) * (length - 1));
+    i = Math.max(0, Math.min(length - 1, i));
+    const bucket = samples[i] || [];
+    const lines = [`<b>第 ${i} 个月</b>`];
+    if (bucket.length >= 3) lines.push(`中位数 ${quantile(bucket, 0.5).toFixed(1)}`);
+    const selected = paths.find((p) => p.phase.id === state.selected);
+    if (selected && selected.values[i] != null) {
+      lines.push(`选中 ${selected.phase.start.slice(0, 4)} ${selected.values[i].toFixed(1)}`);
+    }
+    const ongoing = paths.find((p) => p.phase.ongoing);
+    if (ongoing && ongoing.values[i] != null) lines.push(`进行中 ${ongoing.values[i].toFixed(1)}`);
+    lines.push(`${bucket.length} 轮有这个月的数据`);
+    tip.innerHTML = lines.join("<br>");
+    placeTip(tip, box, event.clientX, event.clientY);
+  });
+  svg.addEventListener("pointerleave", () => { tip.style.display = "none"; });
+}
+
+function rateText(phase) {
+  if (phase.direction === "hike") return `${fmtRate(phase.rate_start)} → ${fmtRate(phase.rate_high)}`;
+  if (phase.direction === "cut") return `${fmtRate(phase.rate_start)} → ${fmtRate(phase.rate_low)}`;
+  return `${fmtRate(phase.rate_low)} – ${fmtRate(phase.rate_high)}`;
+}
+function cell(stats) {
+  const wrap = document.createElement("div");
+  if (!stats) {
+    wrap.textContent = "—";
+    return wrap;
+  }
+  const top = document.createElement("div");
+  top.textContent = fmtPct(stats.cum);
+  top.className = signClass(stats.cum);
+  const ann = document.createElement("span");
+  ann.className = "cell-sub";
+  ann.textContent = "年化 " + fmtPct(stats.ann);
+  const mdd = document.createElement("span");
+  mdd.className = "cell-sub";
+  mdd.textContent = "回撤 " + fmtPct(stats.mdd);
+  wrap.append(top, ann, mdd);
+  return wrap;
+}
+function renderTable() {
+  const body = document.getElementById("tbody");
+  clear(body);
+  const items = phasesInRange().filter(
+    (p) => state.dirs.has(p.direction) || p.id === DATA.summary.current_id
+  );
+  for (const id of Object.keys(ASSET_META)) {
+    const head = document.querySelector(`th[data-col="${id}"]`);
+    if (head) head.style.display = maps[id] ? "" : "none";
+  }
+  for (const phase of items) {
+    const tr = document.createElement("tr");
+    if (state.selected === phase.id) tr.setAttribute("aria-selected", "true");
+    const dir = document.createElement("td");
+    const pill = document.createElement("span");
+    pill.className = "pill " + phase.direction;
+    pill.style.background = DIR_META[phase.direction].color;
+    pill.textContent = dirName(phase.direction);
+    dir.append(pill);
+    if (phase.ongoing) {
+      const badge = document.createElement("span");
+      badge.className = "badge";
+      const now = DATA.summary.now;
+      badge.textContent = phase.id === DATA.summary.current_id && now ? now.title : "进行中";
+      dir.append(badge);
+    }
+    const span = document.createElement("td");
+    span.textContent = `${fmtMonth(phase.start)} – ${phase.ongoing ? "今" : fmtMonth(phase.end)}`;
+    const months = document.createElement("td");
+    months.textContent = String(phase.months);
+    const rate = document.createElement("td");
+    rate.textContent = rateText(phase);
+    tr.append(dir, span, months, rate);
+    for (const id of Object.keys(ASSET_META)) {
+      const td = document.createElement("td");
+      if (!maps[id]) td.style.display = "none";
+      else td.append(cell(phase.returns[id]));
+      tr.append(td);
+    }
+    tr.addEventListener("click", () => selectPhase(phase.id, true));
+    body.append(tr);
+  }
+  if (!items.length) {
+    const tr = document.createElement("tr");
+    const td = document.createElement("td");
+    td.colSpan = 4 + Object.keys(ASSET_META).length;
+    td.textContent = "这个筛选下没有周期。";
+    tr.append(td);
+    body.append(tr);
+  }
+}
+
+function renderMethod() {
+  const p = DATA.params;
+  document.getElementById("method").textContent =
+    `利率从阶段低点回升满 ${p.reversal.toFixed(2)} 个百分点，确认一轮加息开始；从阶段高点回落满同样幅度，确认一轮降息开始。若高点或低点之后，利率离这个极值不超过 ${p.band.toFixed(2)} 个百分点并持续满 ${p.hold_months} 个月，这一段改标为持稳。零利率年和加息见顶后的平台因此不会整段算进降息或加息。`;
+  const cov = DATA.coverage;
+  const bits = [
+    cov.fed ? `联邦基金 ${fmtMonth(cov.fed.start)}–${fmtMonth(cov.fed.end)}` : "",
+    cov.spx ? `标普 ${fmtMonth(cov.spx.start)}–${fmtMonth(cov.spx.end)}` : "",
+    cov.ixic ? `纳指 ${fmtMonth(cov.ixic.start)}–${fmtMonth(cov.ixic.end)}` : "",
+    cov.rut ? `罗素 ${fmtMonth(cov.rut.start)}–${fmtMonth(cov.rut.end)}` : "",
+    cov.gold ? `黄金 ${fmtMonth(cov.gold.start)}–${fmtMonth(cov.gold.end)}` : "",
+    cov.csi ? `沪深300 ${fmtMonth(cov.csi.start)}–${fmtMonth(cov.csi.end)}` : "",
+    DATA.summary.cut_gold_ann_median != null
+      ? `黄金降息段年化中位数 ${fmtPct(DATA.summary.cut_gold_ann_median)}，加息段 ${fmtPct(DATA.summary.hike_gold_ann_median)}`
+      : "",
+  ].filter(Boolean);
+  document.getElementById("generated").textContent =
+    `页面生成于 ${DATA.generated_at}。${bits.join(" · ")}。`;
+}
+
+function selectPhase(id, scroll) {
+  state.selected = state.selected === id ? null : id;
+  render();
+  if (scroll && state.selected) {
+    document.getElementById("panel-main").scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+}
+
+function render() {
+  syncButtons();
+  renderKpis();
+  renderMain();
+  renderBars();
+  renderSpaghetti();
+  renderTable();
+}
+
+function init() {
+  renderWarnings();
+  renderMethod();
+  for (const id of Object.keys(ASSET_META)) {
+    const btn = document.querySelector(`[data-asset="${id}"]`);
+    if (!maps[id] || maps[id].size < 2) {
+      state.assets.delete(id);
+      if (btn) {
+        btn.disabled = true;
+        btn.title = "没有下载到这个序列";
+      }
+    }
+  }
+  const select = document.getElementById("spa-asset");
+  for (const id of availableAssets()) {
+    const option = document.createElement("option");
+    option.value = id;
+    option.textContent = ASSET_META[id].name;
+    select.append(option);
+  }
+  if (!maps[state.spaAsset]) state.spaAsset = availableAssets()[0] || "spx";
+  document.querySelectorAll("[data-asset]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const id = btn.dataset.asset;
+      if (state.assets.has(id)) state.assets.delete(id);
+      else state.assets.add(id);
+      render();
+    });
+  });
+  document.querySelectorAll("[data-range]").forEach((btn) => {
+    btn.addEventListener("click", () => { state.range = btn.dataset.range; render(); });
+  });
+  document.querySelectorAll("[data-dir]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const dir = btn.dataset.dir;
+      if (state.dirs.has(dir)) {
+        if (state.dirs.size === 1) return;
+        state.dirs.delete(dir);
+      } else state.dirs.add(dir);
+      render();
+    });
+  });
+  document.querySelectorAll("[data-barmode]").forEach((btn) => {
+    btn.addEventListener("click", () => { state.barMode = btn.dataset.barmode; render(); });
+  });
+  document.getElementById("log-scale").addEventListener("change", (event) => {
+    state.log = event.target.checked;
+    render();
+  });
+  select.addEventListener("change", () => { state.spaAsset = select.value; render(); });
+  document.getElementById("spa-dir").addEventListener("change", (event) => {
+    state.spaDir = event.target.value;
+    render();
+  });
+  let resizeTimer = 0;
+  window.addEventListener("resize", () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(render, 150);
+  });
+  render();
+}
+init();
+</script>
+</body>
+</html>
