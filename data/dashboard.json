@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-12T01:55",
+  "generated_at": "2026-11-13T20:28",
   "params": {
     "reversal": 1.0,
     "band": 0.25,
@@ -81,7 +81,17 @@
       "title": "降息之后的暂停",
       "detail": "上一轮降息是 2024.09 到 2025.11，利率从 5.13% 降到 3.88%。从 2025.11 起停在 3.63%–3.88%，已经 11 个月，还没有开始新的加息。",
       "direction": "hold",
-      "ongoing": true
+      "ongoing": true,
+      "next": {
+        "direction": "hike",
+        "trigger": 4.63,
+        "latest": 3.88,
+        "extreme": 3.63,
+        "extreme_kind": "trough",
+        "gap_pp": 0.75,
+        "done_pp": 0.25,
+        "need_pp": 1.0
+      }
     }
   },
   "series": {

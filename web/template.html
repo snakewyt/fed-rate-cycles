@@ -177,8 +177,31 @@
   footer h2 { font-size: 18px; }
   footer a { color: var(--spx); }
   footer ul { margin: 8px 0 0; padding-left: 18px; }
+  .rel-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-top: 12px;
+  }
+  .rel-grid h3 {
+    margin: 0 0 6px;
+    font-family: "Palatino Linotype", Palatino, "Songti SC", serif;
+    font-size: 18px;
+    font-weight: 600;
+  }
+  .rel-grid p { margin: 0 0 6px; }
+  .rel-grid p:last-child { margin: 0; }
+  .rel-why { max-width: 78ch; margin: 0 0 14px; color: #4e463c; }
+  .rel-split { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .rel-h {
+    margin: 18px 0 4px;
+    font-family: "Palatino Linotype", Palatino, "Songti SC", serif;
+    font-size: 18px;
+    font-weight: 600;
+  }
   @media (max-width: 860px) {
     .kpis { grid-template-columns: 1fr 1fr; }
+    .rel-grid, .rel-split { grid-template-columns: 1fr; }
     .value { font-size: 22px; }
   }
   @media (max-width: 560px) {
@@ -222,8 +245,42 @@
       <span><i class="swatch" style="background:var(--hike)"></i>加息</span>
       <span><i class="swatch" style="background:var(--cut)"></i>降息</span>
       <span><i class="swatch" style="background:var(--hold)"></i>持稳</span>
-      <span>右轴是联邦基金利率。资产在窗口起点重新定为 100。右端虚线是现在。</span>
+      <span>右轴是联邦基金利率。资产在窗口起点重新定为 100。右端虚线是现在，横虚线是下一档确认利率。</span>
     </div>
+  </section>
+
+  <section class="panel" id="panel-rel">
+    <h2>美债、黄金和美股是怎么连在一起的</h2>
+    <p class="subhead" id="rel-sub"></p>
+    <p class="rel-why" id="rel-why"></p>
+    <div class="rel-split">
+      <div class="chart-box" id="rel-bond-box">
+        <div id="rel-bond-chart"></div>
+        <div class="tip" id="rel-bond-tip"></div>
+      </div>
+      <div class="chart-box" id="rel-gold-box">
+        <div id="rel-gold-chart"></div>
+        <div class="tip" id="rel-gold-tip"></div>
+      </div>
+    </div>
+    <div class="legend">
+      <span><i class="swatch" style="background:var(--hike)"></i>加息</span>
+      <span><i class="swatch" style="background:var(--cut)"></i>降息</span>
+      <span><i class="swatch" style="background:var(--hold)"></i>持稳</span>
+      <span>每个点是一轮。斜线表示和标普涨得一样多，点在斜线上方就是纵轴更强。坐标收到 -50% 到 +90%，更远的点贴在边上。</span>
+    </div>
+    <h3 class="rel-h">一轮结束时，三项各涨了多少</h3>
+    <div class="chart-box" id="rel-box">
+      <div id="rel-chart"></div>
+      <div class="tip" id="rel-tip"></div>
+    </div>
+    <div class="legend">
+      <span><i class="swatch" style="background:var(--spx)"></i>标普 500</span>
+      <span><i class="swatch" style="background:var(--gold)"></i>黄金</span>
+      <span><i class="swatch" style="background:var(--bond)"></i>10 年美债</span>
+      <span>柱子是同一批轮次的累计收益中位数。</span>
+    </div>
+    <div class="rel-grid" id="rel-notes"></div>
   </section>
 
   <section class="panel">
@@ -379,6 +436,13 @@ function monthsOf(phase) {
   return fedMonths.filter((m) => m >= phase.start && m <= phase.end);
 }
 function signClass(x) { return x > 0 ? "pos" : x < 0 ? "neg" : ""; }
+function confirmText(next) {
+  if (!next || !next.direction || next.trigger == null) return "";
+  const verb = next.direction === "hike" ? "升" : "降";
+  const base = next.extreme_kind === "trough" ? "低点" : "高点";
+  const bp = Math.round(next.gap_pp * 100);
+  return `再${verb} ${next.gap_pp.toFixed(2)} 个百分点（${bp} 个基点）到 ${fmtRate(next.trigger)}，才确认${dirName(next.direction)}。基准是这段${base} ${fmtRate(next.extreme)}。`;
+}
 
 function renderWarnings() {
   const host = document.getElementById("warnings");
@@ -407,8 +471,8 @@ function renderKpis() {
     {
       label: "现在大致是",
       value: now.title || dirName(current.direction),
-      hint: now.detail || `${fmtMonth(current.start)} – ${current.ongoing ? "今" : fmtMonth(current.end)} · 利率 ${rateText(current)}`,
-      extra: extras.join(" · ") || "这段起点还没有价格",
+      hint: confirmText(now.next) || now.detail || `${fmtMonth(current.start)} – ${current.ongoing ? "今" : fmtMonth(current.end)} · 利率 ${rateText(current)}`,
+      extra: [now.next ? now.detail : "", extras.join(" · ") || "这段起点还没有价格"].filter(Boolean).join(" "),
       select: current.id,
     },
     {
@@ -524,8 +588,9 @@ function renderMain() {
   const start = RANGES[state.range];
   const months = fedMonths.filter((m) => m >= start);
   const now = DATA.summary.now;
+  const gapLine = confirmText(now && now.next);
   document.getElementById("main-sub").textContent = months.length
-    ? `${fmtMonth(months[0])} – ${fmtMonth(months[months.length - 1])} · 现在是${now ? now.title : "最新一段"}。右端虚线标在最新一个月。点色带或表格可以固定某一轮`
+    ? `${fmtMonth(months[0])} – ${fmtMonth(months[months.length - 1])} · 现在是${now ? now.title : "最新一段"}。${gapLine}右端虚线标在最新一个月。点色带或表格可以固定某一轮`
     : "";
   if (months.length < 2) {
     host.append(Object.assign(document.createElement("p"), { className: "empty", textContent: "这个范围里没有数据。" }));
@@ -566,8 +631,13 @@ function renderMain() {
     if (ymin <= 0) ymin = Math.min(...prices) * 0.9;
   }
   const rates = months.map((m) => maps.fed.get(m));
+  const showNext = now && now.next && now.next.trigger != null && months[months.length - 1] === fedMonths[fedMonths.length - 1];
   let rmin = Math.min(0, ...rates);
   let rmax = Math.max(...rates, 1);
+  if (showNext) {
+    rmin = Math.min(rmin, now.next.trigger);
+    rmax = Math.max(rmax, now.next.trigger);
+  }
   rmax += (rmax - rmin) * 0.08;
   const yPrice = (v) => {
     const t = state.log
@@ -672,6 +742,19 @@ function renderMain() {
   el("path", {
     d: pathOf(rates, yRate), fill: "none", stroke: "#221c16", "stroke-width": 1.5,
   }, lines);
+  if (showNext) {
+    const y = yRate(now.next.trigger);
+    const color = DIR_META[now.next.direction].color;
+    el("line", {
+      x1: pad.l, x2: width - pad.r, y1: y, y2: y,
+      stroke: color, "stroke-width": 1.25, "stroke-dasharray": "6 4",
+    }, lines);
+    const labelY = y - pad.t < 16 ? y + 14 : y - 6;
+    const label = el("text", {
+      x: pad.l + 8, y: labelY, fill: color, "font-size": 12, "font-weight": 600,
+    }, svg);
+    label.textContent = `${dirName(now.next.direction)}确认 ${fmtRate(now.next.trigger)} · 还差 ${now.next.gap_pp.toFixed(2)} 个百分点`;
+  }
 
   const hover = el("line", { y1: pad.t, y2: pad.t + plotH, stroke: "#221c16", "stroke-dasharray": "3 3", visibility: "hidden" }, svg);
   host.append(svg);
@@ -1034,10 +1117,253 @@ function selectPhase(id, scroll) {
   }
 }
 
+const TRIO = ["spx", "gold", "bond"];
+
+function finishedTrio(direction) {
+  return DATA.phases.filter((p) =>
+    p.direction === direction && !p.ongoing && !p.censored &&
+    TRIO.every((id) => p.returns[id] && p.returns[id].cum != null)
+  );
+}
+
+function relPack(direction) {
+  const phases = finishedTrio(direction);
+  const assets = TRIO.map((id) => {
+    const cum = phases.map((p) => p.returns[id].cum);
+    const ann = phases.map((p) => p.returns[id].ann).filter((v) => v != null && Number.isFinite(v));
+    const best = phases.filter((p) => {
+      const top = Math.max(...TRIO.map((k) => p.returns[k].cum));
+      return p.returns[id].cum === top;
+    }).length;
+    return {
+      id,
+      name: id === "bond" ? "10 年美债" : ASSET_META[id].name,
+      pos: cum.filter((v) => v > 0).length,
+      medCum: median(cum),
+      medAnn: median(ann),
+      best,
+    };
+  });
+  const beats = (a, b) => phases.filter((p) => p.returns[a].cum > p.returns[b].cum).length;
+  return { direction, phases, assets, n: phases.length, beats };
+}
+
+function relSentence(pack) {
+  const n = pack.n;
+  const find = (id) => pack.assets.find((a) => a.id === id);
+  const spx = find("spx");
+  const gold = find("gold");
+  const bond = find("bond");
+  const stockBond = pack.beats("spx", "bond");
+  const goldStock = pack.beats("gold", "spx");
+  const stockGold = pack.beats("spx", "gold");
+  if (pack.direction === "hike") {
+    return `加息没有把优势固定给其中一项。标普跑赢美债 ${stockBond}/${n} 轮，黄金跑赢标普 ${goldStock}/${n} 轮。`;
+  }
+  if (pack.direction === "cut") {
+    return `降息时三项往往一起涨，美债几乎轮轮为正。标普跑赢美债只有 ${stockBond}/${n} 轮，黄金跑赢标普 ${goldStock}/${n} 轮。`;
+  }
+  return `暂停时标普通常领先，跑赢美债 ${stockBond}/${n} 轮，跑赢黄金 ${stockGold}/${n} 轮。`;
+}
+
+function renderPairScatter(boxId, chartId, tipId, yId, yName) {
+  const box = document.getElementById(boxId);
+  const host = document.getElementById(chartId);
+  const tip = document.getElementById(tipId);
+  clear(host);
+  tip.style.display = "none";
+  const points = ["hike", "cut", "hold"].flatMap((direction) =>
+    finishedTrio(direction).map((phase) => ({
+      phase,
+      direction,
+      x: phase.returns.spx.cum,
+      y: phase.returns[yId].cum,
+    }))
+  );
+  if (points.length < 2) return;
+  const pad = { l: 52, r: 18, t: 28, b: 40 };
+  const plot = Math.min(340, Math.max(220, chartWidth(box) - pad.l - pad.r));
+  const width = plot + pad.l + pad.r;
+  const height = plot + pad.t + pad.b;
+  const lo = -0.5;
+  const hi = 0.9;
+  const clamp = (v) => Math.max(lo, Math.min(hi, v));
+  const xOf = (v) => pad.l + ((clamp(v) - lo) / (hi - lo)) * plot;
+  const yOf = (v) => pad.t + (1 - (clamp(v) - lo) / (hi - lo)) * plot;
+  const svg = el("svg", { width, height, viewBox: `0 0 ${width} ${height}`, role: "img" });
+  svg.setAttribute("aria-label", `标普与${yName}在各轮的累计收益`);
+  el("line", { x1: xOf(0), x2: xOf(0), y1: pad.t, y2: pad.t + plot, stroke: "#eadfcd" }, svg);
+  el("line", { x1: pad.l, x2: pad.l + plot, y1: yOf(0), y2: yOf(0), stroke: "#eadfcd" }, svg);
+  el("line", {
+    x1: xOf(lo), x2: xOf(hi), y1: yOf(lo), y2: yOf(hi),
+    stroke: "#221c16", "stroke-dasharray": "4 4", "stroke-width": 1,
+  }, svg);
+  for (const tick of linTicks(lo, hi, 4)) {
+    const labelX = el("text", { x: xOf(tick), y: height - 18, "text-anchor": "middle", fill: "#6f6456", "font-size": 11 }, svg);
+    labelX.textContent = Math.round(tick * 100) + "%";
+    const labelY = el("text", { x: pad.l - 8, y: yOf(tick) + 4, "text-anchor": "end", fill: "#6f6456", "font-size": 11 }, svg);
+    labelY.textContent = Math.round(tick * 100) + "%";
+  }
+  const title = el("text", { x: pad.l, y: 16, fill: "#221c16", "font-size": 13, "font-weight": 600 }, svg);
+  title.textContent = `标普 → ${yName}`;
+  const corner = el("text", { x: pad.l + plot - 4, y: pad.t + 14, "text-anchor": "end", fill: "#6f6456", "font-size": 11 }, svg);
+  corner.textContent = "上方更强";
+  const outside = (point) => point.x < lo || point.x > hi || point.y < lo || point.y > hi;
+  const marked = new Set(points.filter((point) => outside(point) || (point.direction === "cut" && point.x < -0.15)).map((point) => point.phase.id));
+  const usedLabels = [];
+  for (const point of points) {
+    const dot = el("circle", {
+      cx: xOf(point.x), cy: yOf(point.y), r: 5,
+      fill: DIR_META[point.direction].color,
+      stroke: "#fbf7ef", "stroke-width": 1.2,
+      cursor: "pointer",
+    }, svg);
+    const show = (event) => {
+      const phase = point.phase;
+      tip.innerHTML = `<b>${dirName(point.direction)} ${fmtMonth(phase.start)} – ${fmtMonth(phase.end)}</b><br>标普 ${fmtPct(point.x)}<br>${yName} ${fmtPct(point.y)}`;
+      placeTip(tip, box, event.clientX, event.clientY);
+    };
+    dot.addEventListener("pointermove", show);
+    dot.addEventListener("click", () => selectPhase(point.phase.id, true));
+    if (marked.has(point.phase.id)) {
+      const nearRight = xOf(point.x) > pad.l + plot - 64;
+      let lx = xOf(point.x) + (nearRight ? -8 : 8);
+      let ly = yOf(point.y) - 8;
+      for (const prev of usedLabels) {
+        if (Math.abs(prev.x - lx) < 48 && Math.abs(prev.y - ly) < 12) ly += 13;
+      }
+      usedLabels.push({ x: lx, y: ly });
+      const tag = el("text", {
+        x: lx,
+        y: ly,
+        fill: "#221c16",
+        "font-size": 11,
+        "text-anchor": nearRight ? "end" : "start",
+      }, svg);
+      const spill = outside(point)
+        ? ` ${fmtPct(Math.abs(point.y) > Math.abs(point.x) ? point.y : point.x)}`
+        : "";
+      tag.textContent = phaseYear(point.phase) + spill;
+    }
+  }
+  const xCap = el("text", { x: pad.l + plot / 2, y: height - 4, "text-anchor": "middle", fill: "#6f6456", "font-size": 11 }, svg);
+  xCap.textContent = "标普累计";
+  host.append(svg);
+  svg.addEventListener("pointerleave", () => { tip.style.display = "none"; });
+}
+
+function phaseYear(phase) {
+  return phase.start.slice(0, 4);
+}
+
+function renderRelations() {
+  const host = document.getElementById("rel-chart");
+  const notes = document.getElementById("rel-notes");
+  const box = document.getElementById("rel-box");
+  const tip = document.getElementById("rel-tip");
+  const sub = document.getElementById("rel-sub");
+  clear(host);
+  clear(notes);
+  tip.style.display = "none";
+  const packs = ["hike", "cut", "hold"].map(relPack).filter((p) => p.n > 0);
+  const goldStart = DATA.coverage.gold ? fmtMonth(DATA.coverage.gold.start) : "1968.01";
+  sub.textContent = packs.length
+    ? `只比较标普、黄金、10 年美债都有价格的已完成轮次，不随上面的时间筛选变化。黄金从 ${goldStart} 起算，更早的周期不在这组里。股票不含分红。`
+    : "这三项还没有能放在同一轮里比较的周期。";
+  const why = document.getElementById("rel-why");
+  const hike = packs.find((p) => p.direction === "hike");
+  const cut = packs.find((p) => p.direction === "cut");
+  if (hike && cut) {
+    const goldHike = hike.assets.find((a) => a.id === "gold");
+    const bondCut = cut.assets.find((a) => a.id === "bond");
+    const goldBeat = cut.beats("gold", "spx");
+    const stockBond = cut.beats("spx", "bond");
+    why.textContent =
+      `利率先改到美债的价格：收益率下降，债价上升，所以降息的 ${cut.n} 轮里美债有 ${bondCut.pos} 轮为正。黄金没有票息，加息时要和更高的现金收益竞争，这 ${hike.n} 轮的累计中位数是 ${fmtPct(goldHike.medCum)}；降息把这个成本降下来以后，黄金有 ${goldBeat}/${cut.n} 轮跑赢标普。美股一边吃到降息，一边又怕这轮降息是冲着衰退去的，所以它最容易掉队，降息时只有 ${stockBond}/${cut.n} 轮跑赢美债。下面每个点是一轮。`;
+  } else {
+    why.textContent = "";
+  }
+  renderPairScatter("rel-bond-box", "rel-bond-chart", "rel-bond-tip", "bond", "10 年美债");
+  renderPairScatter("rel-gold-box", "rel-gold-chart", "rel-gold-tip", "gold", "黄金");
+  if (!packs.length) return;
+
+  const values = packs.flatMap((p) => p.assets.map((a) => a.medCum)).filter((v) => v != null);
+  const width = chartWidth(box);
+  const height = 300;
+  const pad = { l: 52, r: 16, t: 16, b: 40 };
+  const plotW = width - pad.l - pad.r;
+  const plotH = height - pad.t - pad.b;
+  let min = Math.min(0, ...values);
+  let max = Math.max(0, ...values);
+  if (min === max) { min -= 0.05; max += 0.05; }
+  const padY = (max - min) * 0.16;
+  min -= padY;
+  max += padY;
+  const yOf = (v) => pad.t + (1 - (v - min) / (max - min)) * plotH;
+  const zero = yOf(0);
+  const svg = el("svg", { width, height, viewBox: `0 0 ${width} ${height}`, role: "img" });
+  svg.setAttribute("aria-label", "加息与降息中标普、黄金和美债的累计收益中位数");
+  for (const tick of linTicks(min, max, 5)) {
+    const y = yOf(tick);
+    el("line", { x1: pad.l, x2: width - pad.r, y1: y, y2: y, stroke: tick === 0 ? "#221c16" : "#eadfcd" }, svg);
+    const label = el("text", { x: pad.l - 8, y: y + 4, "text-anchor": "end", fill: "#6f6456", "font-size": 11 }, svg);
+    label.textContent = Math.round(tick * 100) + "%";
+  }
+  const groupW = plotW / packs.length;
+  const barW = Math.min(26, (groupW - 28) / TRIO.length);
+  packs.forEach((pack, index) => {
+    const gx = pad.l + (index + 0.5) * groupW;
+    pack.assets.forEach((asset, ai) => {
+      if (asset.medCum == null) return;
+      const y = yOf(asset.medCum);
+      const top = Math.min(y, zero);
+      const h = Math.max(1, Math.abs(y - zero));
+      const x = gx - (TRIO.length * barW) / 2 + ai * barW;
+      const rect = el("rect", {
+        x, y: top, width: barW - 4, height: h,
+        fill: ASSET_META[asset.id].color, rx: 2,
+      }, svg);
+      rect.addEventListener("pointermove", (event) => {
+        tip.innerHTML = `<b>${dirName(pack.direction)} · ${asset.name}</b><br>累计中位数 ${fmtPct(asset.medCum)}<br>年化中位数 ${fmtPct(asset.medAnn)}<br>${asset.pos}/${pack.n} 轮为正 · ${asset.best} 次排第一`;
+        placeTip(tip, box, event.clientX, event.clientY);
+      });
+    });
+    const label = el("text", {
+      x: gx, y: height - 16, "text-anchor": "middle",
+      fill: DIR_META[pack.direction].color, "font-size": 13, "font-weight": 600,
+    }, svg);
+    label.textContent = `${dirName(pack.direction)} · ${pack.n} 轮`;
+  });
+  host.append(svg);
+  svg.addEventListener("pointerleave", () => { tip.style.display = "none"; });
+
+  for (const pack of packs) {
+    const card = document.createElement("article");
+    card.className = "card";
+    const title = document.createElement("h3");
+    title.textContent = dirName(pack.direction);
+    title.style.color = DIR_META[pack.direction].color;
+    const returns = document.createElement("p");
+    returns.className = "hint";
+    returns.textContent = pack.assets
+      .map((a) => `${a.name} ${fmtPct(a.medCum)}（${a.pos}/${pack.n} 为正）`)
+      .join("。") + "。";
+    const rank = document.createElement("p");
+    rank.className = "hint";
+    const order = [...pack.assets].sort((a, b) => b.best - a.best || b.medCum - a.medCum);
+    rank.textContent = "一轮里排第一：" + order.map((a) => `${a.name} ${a.best} 次`).join("，") + "。";
+    const sentence = document.createElement("p");
+    sentence.textContent = relSentence(pack);
+    card.append(title, sentence, returns, rank);
+    notes.append(card);
+  }
+}
+
 function render() {
   syncButtons();
   renderKpis();
   renderMain();
+  renderRelations();
   renderBars();
   renderSpaghetti();
   renderTable();

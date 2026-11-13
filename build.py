@@ -192,6 +192,81 @@ def detect_phases(series: list[tuple[str, float]]) -> list[dict]:
     return phases
 
 
+def next_confirmation(series: list[tuple[str, float]]) -> dict | None:
+    """How far the latest rate is from the next 1.00-point reversal.
+
+    Uses the same turn rule as detect_phases. After a trough, the next
+    confirmation is a hike at trough + 1.00. After a peak, it is a cut at
+    peak - 1.00. A further move in the current direction only shifts that line.
+    """
+    vals = [v for _, v in series]
+    if len(vals) < 2:
+        return None
+    max_v = min_v = vals[0]
+    max_i = min_i = 0
+    mode = "init"
+    best = vals[0]
+    for i, v in enumerate(vals):
+        if mode == "init":
+            if v > max_v:
+                max_v, max_i = v, i
+            if v < min_v:
+                min_v, min_i = v, i
+            if max_v - min_v + 1e-6 >= REVERSAL_PP:
+                if max_i > min_i:
+                    mode = "up"
+                    best = max_v
+                else:
+                    mode = "down"
+                    best = min_v
+            continue
+        if mode == "up":
+            if v > best + 1e-9:
+                best = v
+            if best - v + 1e-6 >= REVERSAL_PP:
+                mode = "down"
+                best = v
+        else:
+            if v < best - 1e-9:
+                best = v
+            if v - best + 1e-6 >= REVERSAL_PP:
+                mode = "up"
+                best = v
+    latest = vals[-1]
+    if mode == "init":
+        span = max_v - min_v
+        return {
+            "direction": None,
+            "trigger": None,
+            "latest": round(latest, 4),
+            "extreme": None,
+            "extreme_kind": None,
+            "gap_pp": round(max(0.0, REVERSAL_PP - span), 4),
+            "done_pp": round(span, 4),
+            "need_pp": REVERSAL_PP,
+        }
+    if mode == "down":
+        trigger = best + REVERSAL_PP
+        done = latest - best
+        direction = "hike"
+        extreme_kind = "trough"
+    else:
+        trigger = best - REVERSAL_PP
+        done = best - latest
+        direction = "cut"
+        extreme_kind = "peak"
+    return {
+        "direction": direction,
+        "trigger": round(trigger, 4),
+        "latest": round(latest, 4),
+        "extreme": round(best, 4),
+        "extreme_kind": extreme_kind,
+        "gap_pp": round(REVERSAL_PP - done, 4),
+        "done_pp": round(done, 4),
+        "need_pp": REVERSAL_PP,
+    }
+
+
 def plateau_start(
     vals: list[float], i0: int, i1: int, best: float, band: float, min_months: int
 ) -> int | None:
@@ -683,6 +758,18 @@ def self_test() -> None:
         raise AssertionError("plateau was not split into a hold")
     if describe_now(phases)["title"] != "加息进行中":
         raise AssertionError(describe_now(phases))
+    opened = next_confirmation(list(zip(enumerate_months("2000-01", len(vals)), vals)))
+    if opened["direction"] != "cut" or abs(opened["trigger"] - 0.6) > 1e-9 or abs(opened["gap_pp"] - 1.0) > 1e-9:
+        raise AssertionError(f"synthetic confirmation {opened}")
+    paused = next_confirmation([
+        ("2024-09", 5.13),
+        ("2024-11", 4.50),
+        ("2025-11", 3.88),
+        ("2026-06", 3.63),
+        ("2026-10", 3.88),
+    ])
+    if paused["direction"] != "hike" or abs(paused["trigger"] - 4.63) > 1e-9 or abs(paused["gap_pp"] - 0.75) > 1e-9:
+        raise AssertionError(f"pause confirmation {paused}")
     pause = describe_now([
         {
             "direction": "cut", "start": "2024-09", "end": "2025-11", "months": 14,
@@ -791,6 +878,8 @@ def build(offline: bool) -> None:
         return n
 
     current = phases[-1]
+    now = describe_now(phases)
+    now["next"] = next_confirmation(fed)
     summary = {
         "as_of": fed[-1][0],
         "fed_latest": fed[-1][1],
@@ -810,10 +899,14 @@ def build(offline: bool) -> None:
         "cut_csi_ann_median": med("cut", "csi", "ann"),
         "hike_csi_n": count("hike", "csi"),
         "cut_csi_n": count("cut", "csi"),
-        "now": describe_now(phases),
+        "now": now,
     }
 
-    print(f"NOW      {summary['now']['title']}  {summary['now']['detail']}")
+    nxt = now.get("next") or {}
+    gap_txt = ""
+    if nxt.get("direction") and nxt.get("trigger") is not None:
+        gap_txt = f"  next {nxt['direction']} at {nxt['trigger']:.2f}  gap {nxt['gap_pp']:.2f}pp"
+    print(f"NOW      {summary['now']['title']}  {summary['now']['detail']}{gap_txt}")
     print(f"FEDFUNDS {fed[0][0]} .. {fed[-1][0]}  latest {fed[-1][1]:.2f}")
     print(f"GS10     {gs10[0][0]} .. {gs10[-1][0]}")
     for i, phase in enumerate(phases):
